@@ -239,6 +239,7 @@ class UniRLWandBLogger:
         self.tags = tags if tags is not None else ["unirl"]
         self.run_id = run_id
         self._initialized = False
+        self._last_rollout_metrics: Dict[str, float] = {}
         # Optimizer-step counter for the ``train/`` panel (moved here from
         # BaseTrainer so all step-axis bookkeeping lives in the logger).
         self._optimizer_step = int(optimizer_step)
@@ -649,8 +650,6 @@ class UniRLWandBLogger:
         previews via :meth:`log_generated_media` at this same step value and
         frees them before dispatch.
         """
-        if not self.enabled or not self._initialized:
-            return
         # Lazy import keeps wandb_logger importable without the training stack.
         from unirl.utils.wandb_metrics import compute_rollout_resp_metrics
 
@@ -658,6 +657,10 @@ class UniRLWandBLogger:
         rollout_metrics = compute_rollout_resp_metrics(resp=resp, trunc_len=trunc_len)
         if extra_metrics:
             rollout_metrics.update(extra_metrics)
+        self._last_rollout_metrics = dict(rollout_metrics)
+
+        if not self.enabled or not self._initialized:
+            return
         self.log_rollout(step, rollout_metrics)
 
         self._log_train(results)
@@ -754,7 +757,7 @@ class UniRLWandBLogger:
                 return None
 
         def _fmt(result: Any) -> str:
-            parts = f"loss={result.loss:.4f} gn={result.grad_norm:.4f} lr={result.lr:.2e}"
+            parts = f"loss={result.loss:.3e} gn={result.grad_norm:.3e} lr={result.lr:.2e}"
             metrics = getattr(result, "metrics", None)
             ratio_mean = _metric(metrics, "ratio_mean")
             ratio_std = _metric(metrics, "ratio_std")
@@ -771,7 +774,20 @@ class UniRLWandBLogger:
             body = "  ".join(f"{name}[{_fmt(result)}]" for name, result in results.items())
         else:
             body = _fmt(results)
-        suffix = ("  " + " ".join(f"{k}={v}" for k, v in extra.items())) if extra else ""
+        rollout_metrics = self._last_rollout_metrics
+        diagnostics: Dict[str, str] = {}
+        for key, label in (
+            ("reward_std", "rstd"),
+            ("advantage_std", "astd"),
+            ("zero_std_group_ratio", "zero_groups"),
+        ):
+            value = rollout_metrics.get(key)
+            if value is not None:
+                diagnostics[label] = f"{float(value):.3e}"
+        suffix_items = [f"{k}={v}" for k, v in diagnostics.items()]
+        if extra:
+            suffix_items.extend(f"{k}={v}" for k, v in extra.items())
+        suffix = ("  " + " ".join(suffix_items)) if suffix_items else ""
         log.info(
             "rollout %d/%d  reward=%.4f  %s%s",
             rollout_id + 1,
