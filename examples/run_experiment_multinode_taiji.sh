@@ -157,7 +157,8 @@ start_ray_head() {
     ray start --head \
         --node-ip-address="${NODE_IP}" \
         --port="${RAY_PORT}" \
-        --dashboard-host=0.0.0.0 \
+        --include-dashboard="${RAY_INCLUDE_DASHBOARD:-false}" \
+        --dashboard-host="${RAY_DASHBOARD_HOST:-127.0.0.1}" \
         --num-gpus="${GPUS_PER_NODE}"
 }
 

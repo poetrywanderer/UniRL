@@ -95,12 +95,15 @@ fi
 # --- Single-node Ray (local head) -------------------------------------------
 NODE_IP="${NODE_IP:-127.0.0.1}"
 RAY_PORT="${RAY_PORT:-6379}"
+RAY_INCLUDE_DASHBOARD="${RAY_INCLUDE_DASHBOARD:-false}"
+RAY_DASHBOARD_HOST="${RAY_DASHBOARD_HOST:-127.0.0.1}"
 
 ray stop >/dev/null 2>&1 || true
 ray start --head \
     --node-ip-address="${NODE_IP}" \
     --port="${RAY_PORT}" \
-    --dashboard-host=0.0.0.0 \
+    --include-dashboard="${RAY_INCLUDE_DASHBOARD}" \
+    --dashboard-host="${RAY_DASHBOARD_HOST}" \
     --num-gpus="${GPUS_PER_NODE}"
 
 exec "${CMD[@]}"
